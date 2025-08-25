@@ -239,3 +239,98 @@ if {"region", "asset_type_group"}.issubset(df.columns):
 st.header("7. GIS Map")
 if {"latitude", "longitude"}.issubset(df.columns):
     st.map(df.rename(columns={"latitude": "lat", "longitude": "lon"})[["lat", "lon"]].dropna().head(1000))
+st.header("1. Owned vs Leased")
+if "Owned or Leased" in df.columns:
+    counts = df["Owned or Leased"].value_counts()
+    st.bar_chart(counts)
+else:
+    st.write("Column 'Owned or Leased' not found in dataset")
+st.header("2. Properties by State")
+st.bar_chart(df["State"].value_counts())
+st.header("3. Properties by GSA Region")
+st.bar_chart(df["GSA Region"].value_counts())
+st.header("4. GIS Map of Properties")
+if {"Latitude", "Longitude"}.issubset(df.columns):
+    st.map(df.rename(columns={"Latitude": "lat", "Longitude": "lon"}))
+else:
+    st.write("Latitude/Longitude not found in dataset")
+state = st.selectbox("Select a State:", df["State"].unique())
+st.write(df[df["State"] == state])
+import pandas as pd
+import numpy as np
+import streamlit as st
+from sklearn.linear_model import LinearRegression
+
+# Example: df has columns ["date", "region", "price"]
+df['date'] = pd.to_datetime(df['date'])
+df = df.sort_values(['region', 'date'])
+
+# Group by region (or asset)
+grouped = df.groupby('region')
+
+features = []
+
+for region, data in grouped:
+    data = data.set_index('date').asfreq('M')  # ensure monthly freq
+    data['latest_price'] = data['price'].iloc[-1]
+    
+    # Rolling averages
+    data['avg_3m'] = data['price'].rolling(3).mean()
+    data['avg_6m'] = data['price'].rolling(6).mean()
+    data['avg_12m'] = data['price'].rolling(12).mean()
+    
+    # Momentum
+    data['pct_change_1m'] = data['price'].pct_change(1)
+    data['pct_change_3m'] = data['price'].pct_change(3)
+    data['pct_change_12m'] = data['price'].pct_change(12)
+    
+    # Volatility
+    data['volatility_6m'] = data['price'].rolling(6).std()
+    
+    # Trend (slope regression on last 12 months)
+    if len(data) >= 12:
+        y = data['price'].tail(12).values.reshape(-1,1)
+        X = np.arange(len(y)).reshape(-1,1)
+        model = LinearRegression().fit(X, y)
+        slope = model.coef_[0][0]
+    else:
+        slope = np.nan
+    data['trend_slope'] = slope
+    
+    # CAGR
+    try:
+        first = data['price'].iloc[0]
+        last = data['price'].iloc[-1]
+        years = (data.index[-1] - data.index[0]).days / 365
+        cagr = (last/first)**(1/years) - 1 if years > 0 else np.nan
+    except:
+        cagr = np.nan
+    data['CAGR'] = cagr
+    
+    features.append(data)
+
+features_df = pd.concat(features)
+
+# ---------------------------
+# Streamlit Dashboard
+# ---------------------------
+st.title("Market Insights Dashboard")
+
+region = st.selectbox("Select Region", features_df.index.get_level_values('region').unique())
+region_data = features_df.loc[region]
+
+st.subheader("Latest Price")
+st.metric("Latest Price", f"${region_data['latest_price'].iloc[-1]:,.2f}")
+
+st.subheader("Rolling Averages")
+st.line_chart(region_data[['price', 'avg_3m', 'avg_6m', 'avg_12m']])
+
+st.subheader("Momentum (Percentage Change)")
+st.line_chart(region_data[['pct_change_1m', 'pct_change_3m', 'pct_change_12m']])
+
+st.subheader("Volatility (6m Std Dev)")
+st.line_chart(region_data[['volatility_6m']])
+
+st.subheader("Trend & CAGR")
+st.write(f"12m Trend Slope: {region_data['trend_slope'].iloc[-1]:.4f}")
+st.write(f"CAGR: {region_data['CAGR'].iloc[-1]*100:.2f}%")
