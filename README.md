@@ -1,4 +1,4 @@
-# 🏗️ Test-Project: Asset Valuation & Analysis
+# Test-Project: Asset Valuation & Analysis
 
 ## 📌 Project Overview
 This project focuses on **asset valuation, exploratory analytics, and predictive modeling** using two datasets.  
