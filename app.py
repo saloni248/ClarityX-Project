@@ -5,64 +5,71 @@ from streamlit_folium import st_folium
 import plotly.express as px
 import plotly.graph_objects as go
 
-# -------------------------------
+# ------------------------------------------------------------
 # Page Setup
-# -------------------------------
+# ------------------------------------------------------------
 st.set_page_config(page_title="US Real Estate Dashboard", layout="wide")
 st.title("🏠 US Real Estate Asset Dashboard")
 
-# -------------------------------
-# Load Excel File
-# -------------------------------
+# ------------------------------------------------------------
+# Caching Functions for Faster Load
+# ------------------------------------------------------------
+@st.cache_data
+def load_excel(file_name: str):
+    return pd.read_excel(file_name)
+
+@st.cache_data
+def load_csv(file_name: str):
+    return pd.read_csv(file_name)
+
+# ------------------------------------------------------------
+# Load Data
+# ------------------------------------------------------------
 file_name = "assets_with_model_predictions.xlsx"
-
-try:
-    df = pd.read_excel(file_name)
-except Exception as e:
-    st.error(f"Error reading {file_name}: {e}")
-    st.stop()
-
-# -------------------------------
-# Load Predictions CSV (for Estimated Price Map)
-# -------------------------------
 pred_file = "predictions.csv"
 
 try:
-    pred_df = pd.read_csv(pred_file)
+    df = load_excel(file_name)
 except Exception as e:
-    st.error(f"Error reading {pred_file}: {e}")
+    st.error(f"❌ Error reading {file_name}: {e}")
     st.stop()
 
-# Ensure latitude and longitude exist
-if not {"latitude", "longitude", "Estimated_Price"}.issubset(pred_df.columns):
-    st.error("Predictions CSV must include 'latitude', 'longitude', and 'Estimated_Price' columns.")
+try:
+    pred_df = load_csv(pred_file)
+except Exception as e:
+    st.error(f"❌ Error reading {pred_file}: {e}")
     st.stop()
 
-# -------------------------------
-# Ensure Columns Exist in Main Data
-# -------------------------------
+# ------------------------------------------------------------
+# Validate Columns
+# ------------------------------------------------------------
 required_columns = [
     "real property asset name", "zip code", "price_latest",
     "City", "State", "latitude", "longitude",
     "building status", "real property asset type", "predicted_price_model"
 ]
-if not all(col in df.columns for col in required_columns):
-    st.error(f"Dataset must have these columns: {required_columns}")
-    st.write("Columns found in file:", list(df.columns))
+missing_cols = [col for col in required_columns if col not in df.columns]
+if missing_cols:
+    st.error(f"❌ Missing columns in dataset: {missing_cols}")
+    st.write("✅ Columns found in file:", list(df.columns))
     st.stop()
 
-# -------------------------------
+if not {"latitude", "longitude", "Estimated_Price"}.issubset(pred_df.columns):
+    st.error("❌ Predictions CSV must include 'latitude', 'longitude', and 'Estimated_Price' columns.")
+    st.stop()
+
+# ------------------------------------------------------------
 # Create Price Bins
-# -------------------------------
+# ------------------------------------------------------------
 df["Price Bin"] = pd.qcut(
     df["predicted_price_model"],
     q=3,
     labels=["Low", "Medium", "High"]
 )
 
-# -------------------------------
+# ------------------------------------------------------------
 # Sidebar Filters
-# -------------------------------
+# ------------------------------------------------------------
 st.sidebar.header("🔎 Dashboard Filters")
 
 building_options = st.sidebar.multiselect(
@@ -83,18 +90,18 @@ price_bin_options = st.sidebar.multiselect(
     default=df["Price Bin"].dropna().unique().tolist()
 )
 
-# -------------------------------
+# ------------------------------------------------------------
 # Filtered Data
-# -------------------------------
+# ------------------------------------------------------------
 filtered_df = df[
     (df["building status"].isin(building_options)) &
     (df["real property asset type"].isin(asset_type_options)) &
     (df["Price Bin"].isin(price_bin_options))
 ]
 
-# -------------------------------
+# ------------------------------------------------------------
 # Dashboard KPIs
-# -------------------------------
+# ------------------------------------------------------------
 st.subheader("📊 Dashboard Summary (Based on Filters)")
 
 col1, col2, col3 = st.columns(3)
@@ -110,11 +117,10 @@ with col3:
     total_sqft = filtered_df.get("building rentable square feet", pd.Series([0])).fillna(0).sum()
     st.metric("Total Rentable SqFt", f"{total_sqft:,.0f}")
 
-# -------------------------------
-# Visualizations (3 Columns Layout)
-# -------------------------------
+# ------------------------------------------------------------
+# Visual Insights
+# ------------------------------------------------------------
 st.subheader("📈 Visual Insights")
-
 colA, colB, colC = st.columns(3)
 
 # Pie Chart - Asset Type Distribution
@@ -153,9 +159,9 @@ with colC:
     )
     st.plotly_chart(fig_scatter, use_container_width=True)
 
-# -------------------------------
+# ------------------------------------------------------------
 # Extra Graph Row
-# -------------------------------
+# ------------------------------------------------------------
 colX, colY, colZ = st.columns(3)
 
 # Bar Chart - Top Cities by Asset Count
@@ -195,14 +201,14 @@ with colZ:
     )
     st.plotly_chart(fig_box, use_container_width=True)
 
-# -------------------------------
-# Show Original Map
-# -------------------------------
-st.subheader("🗺️ US Real Estate Asset Map (All Assets)")
+# ------------------------------------------------------------
+# Optimized Folium Maps
+# ------------------------------------------------------------
+MAX_POINTS = 500  # To avoid freezing Streamlit
 
+st.subheader("🗺️ US Real Estate Asset Map (Sampled)")
 m = folium.Map(location=[39.8283, -98.5795], zoom_start=4)
-
-for _, row in df.iterrows():
+for _, row in df.head(MAX_POINTS).iterrows():
     popup_text = f"""
     <b>Asset:</b> {row['real property asset name']}<br>
     <b>Status:</b> {row['building status']}<br>
@@ -222,14 +228,12 @@ for _, row in df.iterrows():
 
 st_folium(m, width=1200, height=700)
 
-# -------------------------------
-# New Map for Predictions.csv
-# -------------------------------
-st.subheader("🗺️ Estimated Price Map (From Supervised model Predictions)")
-
+# ------------------------------------------------------------
+# Predictions Map (Also Limited for Performance)
+# ------------------------------------------------------------
+st.subheader("🗺️ Estimated Price Map (Sampled Predictions)")
 map_pred = folium.Map(location=[39.8283, -98.5795], zoom_start=4)
-
-for _, row in pred_df.iterrows():
+for _, row in pred_df.head(MAX_POINTS).iterrows():
     popup_text = f"""
     <b>Asset:</b> {row.get('real property asset name', 'N/A')}<br>
     <b>Estimated Price:</b> ${row['Estimated_Price']:,}<br>
