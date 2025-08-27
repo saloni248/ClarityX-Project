@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import folium
+from folium.plugins import MarkerCluster
 from streamlit_folium import st_folium
 import plotly.express as px
 import plotly.graph_objects as go
@@ -12,7 +13,7 @@ st.set_page_config(page_title="US Real Estate Dashboard", layout="wide")
 st.title("🏠 US Real Estate Asset Dashboard")
 
 # ------------------------------------------------------------
-# Caching Functions for Faster Load
+# Cache Data Loading for Faster Startup
 # ------------------------------------------------------------
 @st.cache_data
 def load_excel(file_name: str):
@@ -41,7 +42,7 @@ except Exception as e:
     st.stop()
 
 # ------------------------------------------------------------
-# Validate Columns
+# Validate Required Columns
 # ------------------------------------------------------------
 required_columns = [
     "real property asset name", "zip code", "price_latest",
@@ -202,13 +203,13 @@ with colZ:
     st.plotly_chart(fig_box, use_container_width=True)
 
 # ------------------------------------------------------------
-# Optimized Folium Maps
+# Folium Map with Marker Clustering (All Data Points)
 # ------------------------------------------------------------
-MAX_POINTS = 500  # To avoid freezing Streamlit
-
-st.subheader("🗺️ US Real Estate Asset Map (Sampled)")
+st.subheader("🗺️ US Real Estate Asset Map (Clustered)")
 m = folium.Map(location=[39.8283, -98.5795], zoom_start=4)
-for _, row in df.head(MAX_POINTS).iterrows():
+marker_cluster = MarkerCluster().add_to(m)
+
+for _, row in df.iterrows():
     popup_text = f"""
     <b>Asset:</b> {row['real property asset name']}<br>
     <b>Status:</b> {row['building status']}<br>
@@ -217,36 +218,31 @@ for _, row in df.head(MAX_POINTS).iterrows():
     <b>Zip:</b> {row['zip code']}<br>
     <b>Location:</b> {row['City']}, {row['State']}
     """
-    folium.CircleMarker(
+    folium.Marker(
         location=[row['latitude'], row['longitude']],
-        radius=5,
-        color="purple",
-        fill=True,
-        fill_color="skyblue",
         popup=folium.Popup(popup_text, max_width=300)
-    ).add_to(m)
+    ).add_to(marker_cluster)
 
 st_folium(m, width=1200, height=700)
 
 # ------------------------------------------------------------
-# Predictions Map (Also Limited for Performance)
+# Predictions Map with Marker Clustering
 # ------------------------------------------------------------
-st.subheader("🗺️ Estimated Price Map (Sampled Predictions)")
+st.subheader("🗺️ Estimated Price Map (From Model Predictions)")
 map_pred = folium.Map(location=[39.8283, -98.5795], zoom_start=4)
-for _, row in pred_df.head(MAX_POINTS).iterrows():
+marker_cluster_pred = MarkerCluster().add_to(map_pred)
+
+for _, row in pred_df.iterrows():
     popup_text = f"""
     <b>Asset:</b> {row.get('real property asset name', 'N/A')}<br>
     <b>Estimated Price:</b> ${row['Estimated_Price']:,}<br>
     <b>Latitude:</b> {row['latitude']}<br>
     <b>Longitude:</b> {row['longitude']}
     """
-    folium.CircleMarker(
+    folium.Marker(
         location=[row['latitude'], row['longitude']],
-        radius=5,
-        color="blue",
-        fill=True,
-        fill_color="lightblue",
         popup=folium.Popup(popup_text, max_width=300)
-    ).add_to(map_pred)
+    ).add_to(marker_cluster_pred)
 
 st_folium(map_pred, width=1200, height=700)
+
