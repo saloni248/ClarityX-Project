@@ -30,6 +30,8 @@ It integrates **statistical methods, GIS spatial analysis, and machine learning 
   - Visualize spatial distribution of assets.
   - Identify metro vs periphery divides.
   - Map hotspots of growth or decline.
+ 
+Link for the dashboard : https://clarityx-project-nhxbwyy7bcgu5ztreehywb.streamlit.app/
 
 ---
 
@@ -62,6 +64,8 @@ It integrates **statistical methods, GIS spatial analysis, and machine learning 
 ---
 
 ## 🚀 How to Run
+Link: https://clarityx-project-nhxbwyy7bcgu5ztreehywb.streamlit.app/
+OR
 1. Clone the repository:
    ```bash
    git clone <repo-link>
