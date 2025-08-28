@@ -62,7 +62,7 @@ It integrates **statistical methods, GIS spatial analysis, and machine learning 
 ---
 
 ## 🚀 How to Run
-Link: https://clarityx-project-nhxbwyy7bcgu5ztreehywb.streamlit.app/
+Link: https://task-2-dashboard-n9um3d85czze2anq5hxc6f.streamlit.app/
 OR
 1. Clone the repository:
    ```bash
